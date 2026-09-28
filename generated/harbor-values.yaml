@@ -1,0 +1,47 @@
+existingSecretAdminPassword: harbor-admin-password
+existingSecretAdminPasswordKey: HARBOR_ADMIN_PASSWORD
+
+persistence:
+  enabled: true
+  resourcePolicy: keep
+
+  persistentVolumeClaim:
+    registry:
+      storageClass: local-path
+      accessMode: ReadWriteOnce
+      size: 10Gi
+
+    jobservice:
+      jobLog:
+        storageClass: local-path
+        accessMode: ReadWriteOnce
+        size: 5Gi
+
+    database:
+      storageClass: local-path
+      accessMode: ReadWriteOnce
+      size: 10Gi
+
+    redis:
+      storageClass: local-path
+      accessMode: ReadWriteOnce
+      size: 5Gi
+
+    trivy:
+      storageClass: local-path
+      accessMode: ReadWriteOnce
+      size: 10Gi
+
+expose:
+  type: nodePort
+
+  tls:
+    enabled: false
+
+  nodePort:
+    ports:
+      http:
+        port: 80
+        nodePort: 30080
+
+externalURL: http://192.168.253.134:30080

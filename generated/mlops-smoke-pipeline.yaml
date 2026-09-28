@@ -1,0 +1,171 @@
+# PIPELINE DEFINITION
+# Name: mlops-smoke-test
+# Description: Validate KFP -> MLflow -> MinIO integration
+components:
+  comp-mlops-smoke-test:
+    executorLabel: exec-mlops-smoke-test
+    inputDefinitions:
+      parameters:
+        minio_endpoint_url:
+          parameterType: STRING
+        mlflow_artifact_bucket:
+          parameterType: STRING
+        mlflow_tracking_uri:
+          parameterType: STRING
+deploymentSpec:
+  executors:
+    exec-mlops-smoke-test:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - mlops_smoke_test
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'mlflow==3.13.0'\
+          \ 'boto3'  &&  python3 -m pip install --quiet --no-warn-script-location\
+          \ 'kfp==2.16.1' '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"\
+          3.9\"' && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef mlops_smoke_test(\n    mlflow_tracking_uri: str,\n    minio_endpoint_url:\
+          \ str,\n    mlflow_artifact_bucket: str,\n):\n    import os\n    import\
+          \ uuid\n\n    import boto3\n    import mlflow\n\n\n    print(\"============================================\"\
+          )\n    print(\"MLOps smoke test\")\n    print(\"============================================\"\
+          )\n\n    print(\"MLflow URI :\", mlflow_tracking_uri)\n    print(\"MinIO\
+          \ URI  :\", minio_endpoint_url)\n    print(\"Bucket     :\", mlflow_artifact_bucket)\n\
+          \n\n    # --------------------------------------------------------\n   \
+          \ # Required credentials\n    # --------------------------------------------------------\n\
+          \n    required_environment = [\n        \"MLFLOW_TRACKING_USERNAME\",\n\
+          \        \"MLFLOW_TRACKING_PASSWORD\",\n        \"AWS_ACCESS_KEY_ID\",\n\
+          \        \"AWS_SECRET_ACCESS_KEY\",\n        \"AWS_DEFAULT_REGION\",\n \
+          \       \"MLFLOW_S3_ENDPOINT_URL\",\n    ]\n\n\n    missing = [\n      \
+          \  name\n        for name in required_environment\n        if not os.environ.get(name)\n\
+          \    ]\n\n\n    if missing:\n\n        raise RuntimeError(\n           \
+          \ \"Required environment variables are missing: \"\n            + \", \"\
+          .join(missing)\n        )\n\n\n    # --------------------------------------------------------\n\
+          \    # MLflow authentication\n    # --------------------------------------------------------\n\
+          \n    mlflow_username = os.environ[\n        \"MLFLOW_TRACKING_USERNAME\"\
+          \n    ]\n\n    mlflow_password = os.environ[\n        \"MLFLOW_TRACKING_PASSWORD\"\
+          \n    ]\n\n\n    os.environ[\n        \"MLFLOW_TRACKING_USERNAME\"\n   \
+          \ ] = mlflow_username\n\n    os.environ[\n        \"MLFLOW_TRACKING_PASSWORD\"\
+          \n    ] = mlflow_password\n\n\n    # --------------------------------------------------------\n\
+          \    # MinIO / S3 configuration\n    #\n    # mlflow-artifact-secret already\
+          \ provides these values,\n    # but explicitly keep the endpoint aligned\
+          \ with the\n    # Pipeline argument as well.\n    # --------------------------------------------------------\n\
+          \n    s3_access_key = os.environ[\n        \"AWS_ACCESS_KEY_ID\"\n    ]\n\
+          \n    s3_secret_key = os.environ[\n        \"AWS_SECRET_ACCESS_KEY\"\n \
+          \   ]\n\n\n    os.environ[\n        \"MLFLOW_S3_ENDPOINT_URL\"\n    ] =\
+          \ minio_endpoint_url\n\n\n    # --------------------------------------------------------\n\
+          \    # 1. Direct MinIO validation\n    #\n    # This validates:\n    #\n\
+          \    #   Pipeline Pod\n    #       ->\n    #   MinIO Service\n    #    \
+          \   ->\n    #   mlflow-artifacts bucket\n    # --------------------------------------------------------\n\
+          \n    print()\n    print(\"============================================\"\
+          )\n    print(\"Direct MinIO validation\")\n    print(\"============================================\"\
+          )\n\n\n    s3 = boto3.client(\n        \"s3\",\n        endpoint_url=minio_endpoint_url,\n\
+          \        aws_access_key_id=s3_access_key,\n        aws_secret_access_key=s3_secret_key,\n\
+          \        region_name=os.environ.get(\n            \"AWS_DEFAULT_REGION\"\
+          ,\n            \"us-east-1\",\n        ),\n    )\n\n\n    response = s3.list_objects_v2(\n\
+          \        Bucket=mlflow_artifact_bucket,\n        MaxKeys=1,\n    )\n\n\n\
+          \    http_status = (\n        response\n        .get(\"ResponseMetadata\"\
+          , {})\n        .get(\"HTTPStatusCode\")\n    )\n\n\n    if http_status !=\
+          \ 200:\n\n        raise RuntimeError(\n            \"MinIO bucket validation\
+          \ failed: \"\n            f\"HTTP {http_status}\"\n        )\n\n\n    print(\n\
+          \        \"MinIO bucket access:\",\n        http_status,\n    )\n\n\n  \
+          \  # --------------------------------------------------------\n    # 2.\
+          \ MLflow validation\n    #\n    # This validates:\n    #\n    #   Pipeline\
+          \ Pod\n    #       ->\n    #   MLflow Tracking Server\n    #       ->\n\
+          \    #   MySQL backend\n    #\n    # and:\n    #\n    #   MLflow artifact\n\
+          \    #       ->\n    #   MinIO\n    # --------------------------------------------------------\n\
+          \n    print()\n    print(\"============================================\"\
+          )\n    print(\"MLflow validation\")\n    print(\"============================================\"\
+          )\n\n\n    mlflow.set_tracking_uri(\n        mlflow_tracking_uri\n    )\n\
+          \n\n    experiment_name = (\n        \"kfp-mlops-smoke-test\"\n    )\n\n\
+          \n    mlflow.set_experiment(\n        experiment_name\n    )\n\n\n    run_name\
+          \ = (\n        \"smoke-\"\n        + uuid.uuid4().hex[:8]\n    )\n\n\n \
+          \   with mlflow.start_run(\n        run_name=run_name\n    ) as run:\n\n\
+          \        mlflow.log_param(\n            \"pipeline\",\n            \"kubeflow-pipelines\"\
+          ,\n        )\n\n        mlflow.log_param(\n            \"purpose\",\n  \
+          \          \"infrastructure-smoke-test\",\n        )\n\n        mlflow.log_param(\n\
+          \            \"artifact_store\",\n            \"minio\",\n        )\n\n\n\
+          \        mlflow.log_metric(\n            \"smoke_test_score\",\n       \
+          \     1.0,\n        )\n\n\n        mlflow.log_text(\n            (\n   \
+          \             \"KFP -> MLflow -> MinIO \"\n                \"smoke test\
+          \ succeeded.\\n\"\n            ),\n            \"smoke-test/result.txt\"\
+          ,\n        )\n\n\n        print(\n            \"experiment =\",\n      \
+          \      experiment_name,\n        )\n\n        print(\n            \"run_id\
+          \     =\",\n            run.info.run_id,\n        )\n\n        print(\n\
+          \            \"artifact   =\",\n            run.info.artifact_uri,\n   \
+          \     )\n\n\n    print()\n    print(\"============================================\"\
+          )\n    print(\"MLOPS SMOKE TEST: PASS\")\n    print(\"============================================\"\
+          )\n\n"
+        image: python:3.11-slim
+        resources:
+          cpuRequest: 0.1
+          memoryRequest: 0.268435456
+          resourceCpuRequest: 100m
+          resourceMemoryRequest: 256Mi
+pipelineInfo:
+  description: Validate KFP -> MLflow -> MinIO integration
+  name: mlops-smoke-test
+root:
+  dag:
+    tasks:
+      mlops-smoke-test:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-mlops-smoke-test
+        inputs:
+          parameters:
+            minio_endpoint_url:
+              runtimeValue:
+                constant: http://minio.object-storage.svc.cluster.local:9000
+            mlflow_artifact_bucket:
+              runtimeValue:
+                constant: mlflow-artifacts
+            mlflow_tracking_uri:
+              runtimeValue:
+                constant: http://mlflow-server.mlflow.svc.cluster.local:5000/mlflow
+        taskInfo:
+          name: mlops-smoke-test
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.16.1
+---
+platforms:
+  kubernetes:
+    deploymentSpec:
+      executors:
+        exec-mlops-smoke-test:
+          secretAsEnv:
+          - keyToEnv:
+            - envVar: MLFLOW_TRACKING_USERNAME
+              secretKey: MLFLOW_TRACKING_USERNAME
+            - envVar: MLFLOW_TRACKING_PASSWORD
+              secretKey: MLFLOW_TRACKING_PASSWORD
+            - envVar: AWS_ACCESS_KEY_ID
+              secretKey: AWS_ACCESS_KEY_ID
+            - envVar: AWS_SECRET_ACCESS_KEY
+              secretKey: AWS_SECRET_ACCESS_KEY
+            - envVar: AWS_DEFAULT_REGION
+              secretKey: AWS_DEFAULT_REGION
+            - envVar: MLFLOW_S3_ENDPOINT_URL
+              secretKey: MLFLOW_S3_ENDPOINT_URL
+            optional: false
+            secretName: mlops-smoke-credentials
+            secretNameParameter:
+              runtimeValue:
+                constant: mlops-smoke-credentials

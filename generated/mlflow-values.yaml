@@ -1,0 +1,81 @@
+fullnameOverride: mlflow-server
+replicaCount: 1
+
+image:
+  repository: localhost/mlflow-server
+  tag: "3.13.0"
+  pullPolicy: Never
+  imagePullSecrets:
+    []
+
+deploymentStrategy:
+  type: Recreate
+
+server:
+  value_options:
+    host: "0.0.0.0"
+    port: 5000
+    workers: 1
+    app_name: basic-auth
+  flag_options:
+    - serve_artifacts
+  staticPrefix: "/mlflow"
+
+service:
+  type: ClusterIP
+
+mlflow:
+  backendStoreUriFrom:
+    secretKeyRef:
+      name: mlflow-backend-secret
+      key: MLFLOW_BACKEND_STORE_URI
+  artifactsDestination: "s3://mlflow-artifacts/"
+
+envFrom:
+  - secretRef:
+      name: mlflow-artifact-secret
+
+env:
+  - name: MLFLOW_AUTH_CONFIG_PATH
+    value: /etc/mlflow-auth/basic_auth.ini
+  - name: MLFLOW_FLASK_SERVER_SECRET_KEY
+    valueFrom:
+      secretKeyRef:
+        name: mlflow-auth-secret
+        key: MLFLOW_FLASK_SERVER_SECRET_KEY
+
+extraVolumes:
+  - name: auth-config
+    secret:
+      secretName: mlflow-auth-config
+
+extraVolumeMounts:
+  - name: auth-config
+    mountPath: /etc/mlflow-auth
+    readOnly: true
+
+storage:
+  enabled: true
+  size: 1Gi
+  accessMode: ReadWriteOnce
+  storageClassName: local-path
+  mountPath: /mlflow
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: 2
+    memory: 2Gi
+
+networkPolicy:
+  enabled: false
+
+metrics:
+  enabled: false
+
+serviceMonitor:
+  enabled: false
+
+automountServiceAccountToken: false

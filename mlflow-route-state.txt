@@ -1,0 +1,186 @@
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"networking.istio.io/v1alpha3","kind":"Gateway","metadata":{"annotations":{},"name":"kubeflow-gateway","namespace":"kubeflow"},"spec":{"selector":{"istio":"ingressgateway"},"servers":[{"hosts":["*"],"port":{"name":"http","number":80,"protocol":"HTTP"}}]}}
+  creationTimestamp: "2026-09-21T17:10:49Z"
+  generation: 1
+  name: kubeflow-gateway
+  namespace: kubeflow
+  resourceVersion: "8838"
+  uid: 6079732c-bc65-4818-b2d7-3ee6a737428d
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - hosts:
+    - '*'
+    port:
+      name: http
+      number: 80
+      protocol: HTTP
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"networking.istio.io/v1alpha3","kind":"VirtualService","metadata":{"annotations":{},"labels":{"app.kubernetes.io/component":"dashboard","app.kubernetes.io/managed-by":"kustomize","app.kubernetes.io/name":"centraldashboard","app.kubernetes.io/part-of":"kubeflow-dashboard"},"name":"dashboard","namespace":"kubeflow"},"spec":{"gateways":["kubeflow-gateway"],"hosts":["*"],"http":[{"match":[{"uri":{"prefix":"/"}}],"rewrite":{"uri":"/"},"route":[{"destination":{"host":"dashboard.kubeflow.svc.cluster.local","port":{"number":80}}}]}]}}
+  creationTimestamp: "2026-09-21T17:11:19Z"
+  generation: 1
+  labels:
+    app.kubernetes.io/component: dashboard
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: centraldashboard
+    app.kubernetes.io/part-of: kubeflow-dashboard
+  name: dashboard
+  namespace: kubeflow
+  resourceVersion: "9128"
+  uid: 276e99c0-3a00-45d2-a703-90538a06708f
+spec:
+  gateways:
+  - kubeflow-gateway
+  hosts:
+  - '*'
+  http:
+  - match:
+    - uri:
+        prefix: /
+    rewrite:
+      uri: /
+    route:
+    - destination:
+        host: dashboard.kubeflow.svc.cluster.local
+        port:
+          number: 80
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"networking.istio.io/v1alpha3","kind":"VirtualService","metadata":{"annotations":{},"name":"oauth2-proxy","namespace":"oauth2-proxy"},"spec":{"gateways":["kubeflow/kubeflow-gateway"],"hosts":["*"],"http":[{"match":[{"uri":{"prefix":"/oauth2/"}}],"route":[{"destination":{"host":"oauth2-proxy.oauth2-proxy.svc.cluster.local","port":{"number":80}}}]}]}}
+  creationTimestamp: "2026-09-21T17:10:36Z"
+  generation: 1
+  name: oauth2-proxy
+  namespace: oauth2-proxy
+  resourceVersion: "8751"
+  uid: 028b996a-51fa-4036-ad17-f7f5b286cd88
+spec:
+  gateways:
+  - kubeflow/kubeflow-gateway
+  hosts:
+  - '*'
+  http:
+  - match:
+    - uri:
+        prefix: /oauth2/
+    route:
+    - destination:
+        host: oauth2-proxy.oauth2-proxy.svc.cluster.local
+        port:
+          number: 80
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"security.istio.io/v1beta1","kind":"AuthorizationPolicy","metadata":{"annotations":{},"name":"istio-ingressgateway","namespace":"istio-system"},"spec":{"action":"ALLOW","rules":[{}],"selector":{"matchLabels":{"app":"istio-ingressgateway","istio":"ingressgateway"}}}}
+  creationTimestamp: "2026-09-21T17:09:22Z"
+  generation: 1
+  name: istio-ingressgateway
+  namespace: istio-system
+  resourceVersion: "8495"
+  uid: ebcfc203-26ae-42c8-ba18-344b9602409d
+spec:
+  action: ALLOW
+  rules:
+  - {}
+  selector:
+    matchLabels:
+      app: istio-ingressgateway
+      istio: ingressgateway
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"security.istio.io/v1beta1","kind":"AuthorizationPolicy","metadata":{"annotations":{},"name":"istio-ingressgateway-oauth2-proxy","namespace":"istio-system"},"spec":{"action":"CUSTOM","provider":{"name":"oauth2-proxy"},"rules":[{"to":[{"operation":{"notPaths":["/dex/*","/dex/**","/oauth2/*"]}}],"when":[{"key":"request.headers[authorization]","notValues":["*"]}]}],"selector":{"matchLabels":{"app":"istio-ingressgateway"}}}}
+  creationTimestamp: "2026-09-21T17:10:36Z"
+  generation: 1
+  name: istio-ingressgateway-oauth2-proxy
+  namespace: istio-system
+  resourceVersion: "8769"
+  uid: 28f75aec-d061-4c8a-b017-9b5638a6dd68
+spec:
+  action: CUSTOM
+  provider:
+    name: oauth2-proxy
+  rules:
+  - to:
+    - operation:
+        notPaths:
+        - /dex/*
+        - /dex/**
+        - /oauth2/*
+    when:
+    - key: request.headers[authorization]
+      notValues:
+      - '*'
+  selector:
+    matchLabels:
+      app: istio-ingressgateway
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"security.istio.io/v1beta1","kind":"AuthorizationPolicy","metadata":{"annotations":{},"name":"istio-ingressgateway-require-jwt","namespace":"istio-system"},"spec":{"action":"DENY","rules":[{"from":[{"source":{"notRequestPrincipals":["*"]}}],"to":[{"operation":{"notPaths":["/dex/*","/dex/**","/oauth2/*"]}}]}],"selector":{"matchLabels":{"app":"istio-ingressgateway"}}}}
+  creationTimestamp: "2026-09-21T17:10:36Z"
+  generation: 1
+  name: istio-ingressgateway-require-jwt
+  namespace: istio-system
+  resourceVersion: "8770"
+  uid: a780abb9-56a7-40ff-b917-e43874320026
+spec:
+  action: DENY
+  rules:
+  - from:
+    - source:
+        notRequestPrincipals:
+        - '*'
+    to:
+    - operation:
+        notPaths:
+        - /dex/*
+        - /dex/**
+        - /oauth2/*
+  selector:
+    matchLabels:
+      app: istio-ingressgateway
+apiVersion: security.istio.io/v1
+kind: RequestAuthentication
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"security.istio.io/v1beta1","kind":"RequestAuthentication","metadata":{"annotations":{},"name":"dex-jwt","namespace":"istio-system"},"spec":{"jwtRules":[{"forwardOriginalToken":true,"fromHeaders":[{"name":"Authorization","prefix":"Bearer "}],"issuer":"http://dex.auth.svc.cluster.local:5556/dex","outputClaimToHeaders":[{"claim":"email","header":"kubeflow-userid"},{"claim":"groups","header":"kubeflow-groups"}]}],"selector":{"matchLabels":{"app":"istio-ingressgateway"}}}}
+  creationTimestamp: "2026-09-21T17:10:36Z"
+  generation: 1
+  name: dex-jwt
+  namespace: istio-system
+  resourceVersion: "8771"
+  uid: 50c58287-56e2-491c-9b34-76133dfd9efa
+spec:
+  jwtRules:
+  - forwardOriginalToken: true
+    fromHeaders:
+    - name: Authorization
+      prefix: 'Bearer '
+    issuer: http://dex.auth.svc.cluster.local:5556/dex
+    outputClaimToHeaders:
+    - claim: email
+      header: kubeflow-userid
+    - claim: groups
+      header: kubeflow-groups
+  selector:
+    matchLabels:
+      app: istio-ingressgateway

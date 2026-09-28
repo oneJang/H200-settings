@@ -1,0 +1,11 @@
+driver:
+  enabled: true
+
+toolkit:
+  enabled: true
+
+mig:
+  strategy: none
+
+dcgmExporter:
+  enabled: true

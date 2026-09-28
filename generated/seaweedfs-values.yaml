@@ -1,0 +1,45 @@
+global:
+  seaweedfs:
+    image:
+      name: chrislusf/seaweedfs
+      tag: "4.47"
+
+master:
+  replicas: 1
+  data:
+    type: persistentVolumeClaim
+    size: 2Gi
+    storageClass: local-path
+
+volume:
+  replicas: 1
+  dataDirs:
+    - name: data
+      type: persistentVolumeClaim
+      size: 20Gi
+      storageClass: local-path
+      maxVolumes: 0
+
+filer:
+  replicas: 1
+  data:
+    type: persistentVolumeClaim
+    size: 5Gi
+    storageClass: local-path
+
+  s3:
+    enabled: false
+
+s3:
+  enabled: true
+  replicas: 1
+  port: 8333
+  enableAuth: true
+  existingConfigSecret: seaweedfs-s3-credentials
+
+  createBuckets:
+    - name: kubeflow-artifacts
+    - name: mlflow-artifacts
+
+admin:
+  enabled: false

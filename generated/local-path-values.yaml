@@ -1,0 +1,10 @@
+storageClass:
+  create: true
+  name: local-path
+  defaultClass: true
+  reclaimPolicy: Retain
+
+nodePathMap:
+  - node: DEFAULT_PATH_FOR_NON_LISTED_NODES
+    paths:
+      - /data/local-path
